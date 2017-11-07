@@ -1,7 +1,7 @@
 ﻿
 $AzureRmSubscriptionName = (Get-AzureRmContext).Subscription.SubscriptionName
 
-Select-AzureRmSubscription -SubscriptionName "IM-DEV (Enterprise)" #$AzureRmSubscriptionName
+Select-AzureRmSubscription -SubscriptionName $AzureRmSubscriptionName
 
 $AzureResourceGroupName = "some-rg"
 $AzureStorageAccountName = "somesa"
