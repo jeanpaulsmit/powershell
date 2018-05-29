@@ -1,0 +1,143 @@
+Import-Module AzureRM
+Import-Module Azure
+Import-Module AzureRM.Resources
+
+# change this value to be your azure subscription id
+$azureSubscriptionId = "<YOUR-SUBSCRIPTION-ID-GOES-HERE>"
+
+# this is the friendly-ish name and info for your application
+# NOTE: this is the name of the Active Directory Application not the AppService
+$activeDirectoryApplicationDisplayName = "hello-world-20180109"
+$activeDirectoryApplicationHomePage = "http://helloworld.com"
+$activeDirectoryApplicationIdentifierUris = "http://helloworld.com/hello-world-20180109"
+
+####
+# This function via 
+# https://www.sabin.io/blog/adding-an-azure-active-directory-application-and-key-using-powershell/
+####
+function Create-AesManagedObject($key, $IV) {
+
+    $aesManaged = New-Object "System.Security.Cryptography.AesManaged"
+    $aesManaged.Mode = [System.Security.Cryptography.CipherMode]::CBC
+    $aesManaged.Padding = [System.Security.Cryptography.PaddingMode]::Zeros
+    $aesManaged.BlockSize = 128
+    $aesManaged.KeySize = 256
+
+    if ($IV) {
+        if ($IV.getType().Name -eq "String") {
+            $aesManaged.IV = [System.Convert]::FromBase64String($IV)
+        }
+        else {
+            $aesManaged.IV = $IV
+        }
+    }
+
+    if ($key) {
+        if ($key.getType().Name -eq "String") {
+            $aesManaged.Key = [System.Convert]::FromBase64String($key)
+        }
+        else {
+            $aesManaged.Key = $key
+        }
+    }
+
+    $aesManaged
+}
+
+####
+# This function via 
+# https://www.sabin.io/blog/adding-an-azure-active-directory-application-and-key-using-powershell/
+####
+function Create-AesKey() {
+    $aesManaged = Create-AesManagedObject 
+    $aesManaged.GenerateKey()
+    [System.Convert]::ToBase64String($aesManaged.Key)
+}
+
+$servicePrincipalKeyValue = Create-AesKey
+
+$keyId = [guid]::NewGuid()
+
+# $psadCredential = New-Object Microsoft.Azure.Commands.Resources.Models.ActiveDirectory.PSADPasswordCredential
+$psadCredential = New-Object Microsoft.Azure.Graph.RBAC.Version1_6.ActiveDirectory.PSADPasswordCredential
+
+$startDate = Get-Date
+$psadCredential.StartDate = $startDate
+$psadCredential.EndDate = $startDate.AddYears(1)
+$psadCredential.KeyId = $keyId
+$psadCredential.Password = $servicePrincipalKeyValue
+
+$keyValueFilename = "key-value-$keyId.txt"
+
+$servicePrincipalKeyValue | Out-File .\$keyValueFilename 
+
+#Login to Azure
+Add-AzureRmAccount
+ 
+Write-Output "Calling Get-AzureRmSubscription to get list of all subscriptions for debugging purposes..."
+Get-AzureRmSubscription
+Write-Output "***"
+
+Write-Output "Getting subscription using Get-AzureRmSubscription..."
+
+$subscription = 
+    (Get-AzureRmSubscription -SubscriptionId $azureSubscriptionId)
+
+Write-Output "Requested subscription: $azureSubscriptionId"
+
+$subscriptionId = $subscription.Id
+$subscriptionName = $subscription.Name
+$tenantId = $subscription.tenantId
+
+Write-Output "Subscription Id: $subscriptionId"
+Write-Output "Subscription Name: $subscriptionName"
+Write-Output "Tenant Id: $tenantId"
+
+Write-Output "Calling Set-AzureRmContext..."
+Set-AzureRmContext -SubscriptionId $subscriptionId -TenantId $tenantId
+
+#create SPN
+Write-Output "Calling New-AzureRmADApplication..."
+New-AzureRmADApplication -DisplayName $activeDirectoryApplicationDisplayName -HomePage $activeDirectoryApplicationHomePage -IdentifierUris $activeDirectoryApplicationIdentifierUris -PasswordCredentials $psadCredential -OutVariable app
+
+Write-Output "Got application..."
+Write-Output $app
+
+$servicePrincipalClientId = $app.ApplicationId
+
+Write-Output "Calling New-AzureRmADServicePrincipal..."
+New-AzureRmADServicePrincipal -ApplicationId $app.ApplicationId -OutVariable servicePrincipal
+
+Write-Output "Got service principal..."
+Write-Output $servicePrincipal
+
+
+Write-Output "Pausing for a bit to let New-AzureRmADServicePrincipal catch up before adding role assignment..."
+Start-Sleep -s 10
+
+Write-Output "Calling New-AzureRmRoleAssignment..."
+New-AzureRmRoleAssignment -RoleDefinitionName Contributor -ServicePrincipalName $app.ApplicationId.Guid -OutVariable roleAssignment
+
+Write-Output "Got role assignment..."
+Write-Output $roleAssignment
+
+Write-Output "Reloading what we just created..."
+
+Get-AzureRmADApplication -DisplayNameStartWith $activeDirectoryApplicationDisplayName -OutVariable reloadedApp
+Get-AzureRmADServicePrincipal -ServicePrincipalName $reloadedApp.ApplicationId.Guid -OutVariable SPN
+
+Write-Output "Here's the SPN..."
+Write-Output $SPN
+
+Write-Output ""
+Write-Output "************************"
+Write-Output ""
+Write-Output "Here's all the info you need."
+Write-Output ""
+Write-Output "Subscription Id: $subscriptionId"
+Write-Output "Subscription Name: $subscriptionName"
+Write-Output "Service Principal Client Id: $servicePrincipalClientId"
+Write-Output "Service Principal Key: $servicePrincipalKeyValue"
+Write-Output "Tenant Id: $tenantId"
+Write-Output ""
+Write-Output "Key value is also written to $keyValueFilename"

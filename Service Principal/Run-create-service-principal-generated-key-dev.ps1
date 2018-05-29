@@ -1,0 +1,1 @@
+﻿.\Create-service-principal-generated-key.ps1 -grantRoleOnSubscriptionLevel -subscriptionName "Visual Studio Professional" -applicationNamePrefix "TFS." -applicationName "DEV-DeploymentPrincipal"
