@@ -1,0 +1,1 @@
+﻿.\Create-service-principal-with-certificate.ps1 -grantRoleOnSubscriptionLevel -subscriptionName "Visual Studio Professional" -applicationNamePrefix "TFS." -applicationName "DEV-DeploymentPrincipal-Cert" -certPath ".\cert.pfx" -certPlainPassword "passw0rd!"
