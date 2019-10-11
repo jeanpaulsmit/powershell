@@ -83,6 +83,7 @@ else
 {
     # Create a new AD Application
     Write-Output "Creating a new Application in AAD (App URI - $identifierUri)" -Verbose
+    $securePassword=ConvertTo-SecureString $password –asplaintext –force
     $azureAdApplication = New-AzureRmADApplication -DisplayName $displayName -HomePage $homePage -IdentifierUris $identifierUri -Password $securePassword -Verbose
     $appId = $azureAdApplication.ApplicationId
     Write-Output "Azure AAD Application creation completed successfully (Application Id: $appId)" -Verbose
