@@ -11,8 +11,18 @@ param
     [string] $subscriptionKey
 )
 
-# Allow cmdlets for APIM to be used
-Install-Module -Name Az.ApiManagement -AllowClobber -Scope CurrentUser -force
+# Allow cmdlets to be used
+Install-Module -Name Az -AllowClobber -Scope CurrentUser -force
+
+$subscriptionId = $env:ARM_SUBSCRIPTION_ID
+$tenantId = $env:ARM_TENANT_ID
+$clientId = $env:ARM_CLIENT_ID
+$secret = $env:ARM_CLIENT_SECRET
+
+$securesecret = ConvertTo-SecureString -String $secret -AsPlainText -Force
+$Credential = New-Object pscredential($clientId,$securesecret)
+Connect-AzAccount -Credential $Credential -Tenant $tenantId -ServicePrincipal
+Select-AzSubscription $subscriptionId
 
 # Get reference to APIM instance
 $apimContext = New-AzApiManagementContext -ResourceGroupName $resourceGroupName -ServiceName $apimServiceName
